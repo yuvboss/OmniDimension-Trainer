@@ -2,10 +2,10 @@
   <nav class="navbar">
     <div class="navbar-content">
       <div class="navbar-brand">
-        <div class="navbar-logo">🎯</div>
+        <img src="/omnidimension_logo.jpeg" alt="OmniDimension" style="height: 36px; width: auto; border-radius: 6px; object-fit: contain" />
         <div>
           <div class="navbar-title">OmniDimension Trainer</div>
-          <div class="navbar-subtitle">AI-Powered Sales Training Platform</div>
+          <div class="navbar-subtitle">Powered by OmniDimension Voice Agents</div>
         </div>
       </div>
       <button v-if="currentView !== 'selector'" @click="goHome" class="btn btn-ghost" style="color: #94a3b8; font-size: 0.85rem">
@@ -35,7 +35,7 @@
   </nav>
 
   <div class="container">
-    <ScenarioSelector v-if="currentView === 'selector'" @start-call="handleStartCall" />
+    <ScenarioSelector v-if="currentView === 'selector'" :retry-data="retryScenario" @start-call="handleStartCall" />
     <CallInterface
       v-else-if="currentView === 'call'"
       :call-id="currentCallId"
@@ -48,6 +48,7 @@
       :feedback-data="feedbackData"
       :scenario-data="currentScenario"
       @try-again="goHome"
+      @retry="handleRetry"
     />
   </div>
 </template>
@@ -66,10 +67,12 @@ export default {
     const currentCallId = ref(null)
     const currentScenario = ref(null)
     const feedbackData = ref(null)
+    const retryScenario = ref(null)
 
     const handleStartCall = (callData) => {
       currentCallId.value = callData.call_id
       currentScenario.value = callData
+      retryScenario.value = null
       currentView.value = 'call'
     }
 
@@ -78,14 +81,26 @@ export default {
       currentView.value = 'feedback'
     }
 
+    const handleRetry = () => {
+      retryScenario.value = {
+        industry_id: currentScenario.value.industry_id,
+        scenario_id: currentScenario.value.id || currentScenario.value.scenario_id,
+        difficulty: currentScenario.value.difficulty,
+      }
+      currentView.value = 'selector'
+      currentCallId.value = null
+      feedbackData.value = null
+    }
+
     const goHome = () => {
+      retryScenario.value = null
       currentView.value = 'selector'
       currentCallId.value = null
       currentScenario.value = null
       feedbackData.value = null
     }
 
-    return { currentView, currentCallId, currentScenario, feedbackData, handleStartCall, handleEndCall, goHome }
+    return { currentView, currentCallId, currentScenario, feedbackData, retryScenario, handleStartCall, handleEndCall, handleRetry, goHome }
   },
 }
 </script>

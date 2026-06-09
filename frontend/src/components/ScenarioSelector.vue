@@ -1,11 +1,59 @@
 <template>
   <div>
+    <!-- Welcome banner -->
+    <div style="background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 60%, #1e40af 100%); border-radius: var(--radius); padding: 2.5rem 2rem; margin-bottom: 20px; position: relative; overflow: hidden">
+      <!-- Background decoration -->
+      <div style="position: absolute; top: -40px; right: -40px; width: 200px; height: 200px; background: rgba(255,255,255,0.03); border-radius: 50%"></div>
+      <div style="position: absolute; bottom: -60px; right: 60px; width: 160px; height: 160px; background: rgba(255,255,255,0.03); border-radius: 50%"></div>
+
+      <div style="position: relative; z-index: 1; max-width: 680px">
+        <div style="display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.1); border-radius: 100px; padding: 5px 14px; margin-bottom: 1rem">
+          <span style="font-size: 0.75rem">🎤</span>
+          <span style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: #93c5fd">Powered by OmniDimension</span>
+        </div>
+        <h1 style="font-size: 1.75rem; font-weight: 800; color: white; margin-bottom: 0.75rem; line-height: 1.25; letter-spacing: -0.02em">
+          Practice sales calls with AI customers, before the real thing.
+        </h1>
+        <p style="font-size: 0.95rem; color: #94a3b8; line-height: 1.65; margin-bottom: 0">
+          This platform is powered by OmniDimension voice agents and helps employees across different industries practice talking to customers. This helps improve their communication, handle tough objections, and give real customers the best experience possible.
+        </p>
+      </div>
+    </div>
+
+    <!-- How it works -->
+    <div class="card" style="margin-bottom: 20px; padding: 1.5rem 2rem">
+      <div class="section-title" style="margin-bottom: 1.25rem">How it works</div>
+      <div class="how-it-works-grid" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0">
+        <div class="how-it-works-step" style="display: flex; align-items: flex-start; gap: 14px; padding-right: 2rem">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: var(--primary-pale); border: 1.5px solid #bfdbfe; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0">🏢</div>
+          <div>
+            <div style="font-size: 0.88rem; font-weight: 700; color: var(--navy); margin-bottom: 3px">1. Choose a scenario</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.55">Pick your industry, difficulty level, and a specific customer situation to practice.</div>
+          </div>
+        </div>
+        <div class="how-it-works-step" style="display: flex; align-items: flex-start; gap: 14px; padding: 0 2rem; border-left: 1px solid var(--border); border-right: 1px solid var(--border)">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: #fff7ed; border: 1.5px solid #fed7aa; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0">📞</div>
+          <div>
+            <div style="font-size: 0.88rem; font-weight: 700; color: var(--navy); margin-bottom: 3px">2. Take the call</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.55">Enter your phone number: the AI customer calls you directly and runs a real conversation.</div>
+          </div>
+        </div>
+        <div class="how-it-works-step" style="display: flex; align-items: flex-start; gap: 14px; padding-left: 2rem">
+          <div style="width: 36px; height: 36px; border-radius: 10px; background: var(--success-pale); border: 1.5px solid #a7f3d0; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; flex-shrink: 0">📊</div>
+          <div>
+            <div style="font-size: 0.88rem; font-weight: 700; color: var(--navy); margin-bottom: 3px">3. Review your feedback</div>
+            <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.55">Get a scored breakdown of your performance with specific tips to improve each area.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Hero -->
-    <div style="margin-bottom: 24px">
-      <h2 style="font-size: 1.6rem; font-weight: 800; color: var(--navy); margin-bottom: 6px; letter-spacing: -0.02em">
+    <div style="margin-bottom: 20px">
+      <h2 style="font-size: 1.4rem; font-weight: 800; color: var(--navy); margin-bottom: 4px; letter-spacing: -0.02em">
         Start a Training Session
       </h2>
-      <p style="color: var(--text-muted); font-size: 0.95rem">
+      <p style="color: var(--text-muted); font-size: 0.9rem">
         Pick an industry, set your difficulty, and take a live call with an AI customer.
       </p>
     </div>
@@ -134,6 +182,17 @@
       <div style="font-size: 3rem; margin-bottom: 1rem">👆</div>
       <p style="font-size: 0.95rem">Select an industry above to get started</p>
     </div>
+
+    <!-- Adding a new industry -->
+    <div style="margin-top: 32px; padding: 1.25rem 1.5rem; border-radius: var(--radius); border: 1.5px dashed var(--border); background: var(--bg); display: flex; align-items: flex-start; gap: 14px">
+      <div style="font-size: 1.2rem; margin-top: 1px">🏗️</div>
+      <div>
+        <div style="font-size: 0.85rem; font-weight: 700; color: var(--navy); margin-bottom: 4px">Want to add a new industry?</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); line-height: 1.6">
+          No code changes needed. New industries can be added by providing a set of scenario configurations: industry name, customer type, deal stages, common questions, common objections, ideal responses, and difficulty level. The core system automatically handles the voice agent setup and feedback generation for any industry.
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -143,6 +202,7 @@ import { industriesAPI, scenariosAPI, callsAPI } from '../services/api'
 
 export default {
   name: 'ScenarioSelector',
+  props: { retryData: { type: Object, default: null } },
   emits: ['start-call'],
   setup(props, { emit }) {
     const industries = ref([])
@@ -153,6 +213,7 @@ export default {
     const phoneNumber = ref(localStorage.getItem('omnidim_phone') || '')
     const loading = ref(false)
     const error = ref('')
+    const retryPending = ref(null)
 
     const difficulties = [
       { value: 'easy', label: 'Easy', icon: '🟢' },
@@ -186,8 +247,17 @@ export default {
         error.value = ''
         const response = await scenariosAPI.getByIndustry(selectedIndustry.value)
         scenarios.value = response.data
-        selectedDifficulty.value = 'medium'
+        selectedDifficulty.value = retryPending.value?.difficulty || 'medium'
         pendingScenario.value = null
+        if (retryPending.value) {
+          const { scenario_id } = retryPending.value
+          retryPending.value = null
+          const match = scenarios.value.find(s => s.id === scenario_id)
+          if (match) {
+            pendingScenario.value = match
+            setTimeout(() => document.getElementById('phone')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150)
+          }
+        }
       } catch {
         error.value = 'Failed to load scenarios.'
         scenarios.value = []
@@ -224,6 +294,7 @@ export default {
           scenario_id: pendingScenario.value.id,
           scenario_name: pendingScenario.value.name,
           difficulty: pendingScenario.value.difficulty,
+          industry_id: selectedIndustry.value,
           phone_number: phone,
           message: callRes.data.message,
           ...detailRes.data,
@@ -235,7 +306,13 @@ export default {
       }
     }
 
-    onMounted(loadIndustries)
+    onMounted(async () => {
+      await loadIndustries()
+      if (props.retryData) {
+        retryPending.value = props.retryData
+        selectedIndustry.value = props.retryData.industry_id
+      }
+    })
 
     return {
       industries, scenarios, selectedIndustry, selectedDifficulty,

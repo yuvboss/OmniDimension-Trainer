@@ -91,7 +91,7 @@
       <button @click="$emit('try-again')" class="btn btn-primary btn-lg" style="flex: 1">
         Try Another Scenario
       </button>
-      <button @click="$emit('try-again')" class="btn btn-secondary btn-lg" style="flex: 1">
+      <button @click="$emit('retry')" class="btn btn-secondary btn-lg" style="flex: 1">
         Retry This Scenario
       </button>
     </div>
@@ -107,7 +107,7 @@ export default {
     feedbackData: Object,
     scenarioData: Object,
   },
-  emits: ['try-again'],
+  emits: ['try-again', 'retry'],
   setup(props) {
     const avg = computed(() => props.feedbackData.average_score)
 
