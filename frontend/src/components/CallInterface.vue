@@ -1,264 +1,199 @@
 <template>
-  <div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem">
+  <div>
+    <!-- Header card -->
+    <div class="card" style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem">
       <div>
-        <h2>{{ scenarioData.scenario_name }}</h2>
-        <p style="color: var(--text-light)">Difficulty: {{ scenarioData.difficulty.toUpperCase() }}</p>
+        <div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); margin-bottom: 4px">Active Session</div>
+        <div style="font-size: 1.05rem; font-weight: 700; color: var(--navy)">{{ scenarioData.scenario_name }}</div>
+        <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 3px">
+          <span :class="['badge', `badge-${scenarioData.difficulty}`]" style="margin-right: 8px">{{ scenarioData.difficulty }}</span>
+          Calling {{ scenarioData.phone_number }}
+        </div>
       </div>
       <div style="text-align: right">
-        <div style="font-size: 2rem; font-weight: bold; color: var(--primary-color)">
-          {{ formatTime(callDuration) }}
+        <div style="font-size: 1.8rem; font-weight: 800; color: var(--navy); font-variant-numeric: tabular-nums">{{ formatTime(elapsed) }}</div>
+        <div style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em">Elapsed</div>
+      </div>
+    </div>
+
+    <div v-if="error" class="alert alert-error" style="margin-bottom: 16px">
+      <span>⚠</span> {{ error }}
+    </div>
+
+    <!-- Status panel -->
+    <div class="card call-status-panel" style="margin-bottom: 16px">
+
+      <!-- Ringing -->
+      <template v-if="isRinging">
+        <div class="pulse-ring" style="margin: 0 auto">
+          <span class="pulse-ring-icon">📞</span>
         </div>
-        <p style="color: var(--text-light); font-size: 0.9rem">Call Duration</p>
-      </div>
-    </div>
-
-    <div v-if="error" class="alert alert-error">
-      {{ error }}
-    </div>
-
-    <!-- AI Response Display -->
-    <div style="background: var(--light-bg); padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem">
-      <h4 style="margin-bottom: 0.5rem; color: var(--primary-color)">Customer/Patient:</h4>
-      <p style="font-size: 1.1rem; line-height: 1.6; color: var(--text-dark)">
-        {{ currentAIResponse || scenarioData.ai_greeting }}
-      </p>
-    </div>
-
-    <!-- Voice Input -->
-    <div style="margin-bottom: 2rem">
-      <div v-if="!speechSupported" class="alert alert-error">
-        Your browser does not support speech recognition. Please use Chrome or Edge.
-      </div>
-
-      <div v-else style="display: flex; flex-direction: column; align-items: center; gap: 1rem">
-        <!-- Mic Button -->
-        <button
-          @click="toggleListening"
-          :disabled="isProcessing"
-          :style="{
-            width: '80px',
-            height: '80px',
-            borderRadius: '50%',
-            border: 'none',
-            cursor: isProcessing ? 'not-allowed' : 'pointer',
-            fontSize: '2rem',
-            background: isListening ? '#ef4444' : 'var(--primary-color)',
-            color: 'white',
-            boxShadow: isListening ? '0 0 0 8px rgba(239,68,68,0.25)' : '0 2px 8px rgba(0,0,0,0.15)',
-            transition: 'all 0.2s',
-          }"
-        >
-          {{ isListening ? '⏹' : '🎤' }}
-        </button>
-
-        <p style="color: var(--text-light); font-size: 0.9rem">
-          {{ isListening ? 'Listening… speak now' : 'Tap to speak' }}
+        <h3 style="font-size: 1.2rem; font-weight: 700; color: var(--navy); margin-bottom: 8px">Calling your phone...</h3>
+        <p style="color: var(--text-muted); max-width: 360px; margin: 0 auto; font-size: 0.9rem">
+          Your phone will ring shortly. Pick up and the AI customer will start the conversation.
         </p>
+        <p style="color: var(--text-muted); max-width: 360px; margin: 0.75rem auto 0; font-size: 0.82rem; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 14px; color: #92400e">
+          The call may take a couple of minutes to connect — keep your phone nearby.
+        </p>
+      </template>
 
-        <!-- Transcript preview -->
-        <div
-          v-if="userResponse"
-          style="width: 100%; background: var(--light-bg); padding: 1rem; border-radius: 8px; font-size: 1rem; color: var(--text-dark); min-height: 3rem"
-        >
-          {{ userResponse }}
+      <!-- In progress -->
+      <template v-else-if="isInProgress">
+        <div style="font-size: 3rem; margin-bottom: 1rem">🎯</div>
+        <div style="margin-bottom: 8px">
+          <span class="live-dot"></span>
+          <span style="font-size: 1.1rem; font-weight: 700; color: var(--success)">Call in Progress</span>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 1.25rem; font-size: 0.9rem">
+          You're live with the AI customer. Stay confident and address their concerns.
+        </p>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center">
+          <span
+            v-for="obj in topObjections"
+            :key="obj"
+            style="background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; padding: 4px 14px; font-size: 0.78rem; font-weight: 500"
+          >
+            Watch for: {{ obj }}
+          </span>
+        </div>
+      </template>
+
+      <!-- Completed -->
+      <template v-else-if="isCompleted">
+        <div style="font-size: 3rem; margin-bottom: 1rem">✅</div>
+        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--success); margin-bottom: 8px">Call Complete!</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem">Analysing your performance and generating feedback...</p>
+        <div style="margin-top: 1rem"><span class="loader loader-dark"></span></div>
+      </template>
+
+      <!-- Failed -->
+      <template v-else-if="isFailed">
+        <div style="font-size: 3rem; margin-bottom: 1rem">❌</div>
+        <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--danger); margin-bottom: 8px">Call Could Not Connect</h3>
+        <p style="color: var(--text-muted); font-size: 0.88rem">Status: {{ callStatus }}. Check your number and try again.</p>
+      </template>
+
+      <!-- Default loading -->
+      <template v-else>
+        <span class="loader loader-dark" style="width: 28px; height: 28px; border-width: 3px; margin-bottom: 1rem"></span>
+        <p style="color: var(--text-muted); font-size: 0.9rem">Connecting to OmniDimension...</p>
+      </template>
+    </div>
+
+    <!-- Two-col info row -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px">
+      <!-- Objective -->
+      <div class="card" style="padding: 1.25rem">
+        <div class="section-title">Your Objective</div>
+        <p style="font-size: 0.88rem; color: var(--text); line-height: 1.6">{{ scenarioData.objective || '—' }}</p>
+      </div>
+
+      <!-- Tips -->
+      <div class="card" style="padding: 1.25rem">
+        <div class="section-title">Quick Tips</div>
+        <div style="font-size: 0.83rem; color: var(--text-muted); line-height: 1.7">
+          <div>• Acknowledge concerns before countering</div>
+          <div>• Use specific numbers and facts</div>
+          <div>• Always close with a next step</div>
         </div>
       </div>
     </div>
 
-    <!-- Action Buttons -->
-    <div style="display: flex; gap: 1rem; margin-bottom: 2rem">
+    <!-- End call button -->
+    <div class="card" style="padding: 1.25rem; display: flex; align-items: center; gap: 16px">
       <button
-        @click="sendResponse"
-        :disabled="!userResponse.trim() || isProcessing"
-        class="btn btn-primary"
+        @click="handleEndCall"
+        :disabled="isFetchingFeedback"
+        class="btn btn-primary btn-lg"
         style="flex: 1"
       >
-        <span v-if="isProcessing" class="loader" style="display: inline-block; margin-right: 0.5rem"></span>
-        {{ isProcessing ? 'Processing...' : 'Send Response' }}
+        <span v-if="isFetchingFeedback" class="loader" style="width: 14px; height: 14px"></span>
+        {{ isFetchingFeedback ? 'Loading Feedback...' : 'End Session & Get Feedback' }}
       </button>
-      <button @click="endCall" :disabled="isProcessing" class="btn btn-secondary">
-        End Call
-      </button>
-    </div>
-
-    <!-- Conversation History -->
-    <div v-if="conversationHistory.length > 0" style="margin-top: 2rem">
-      <h4 style="margin-bottom: 1rem; color: var(--text-dark)">Conversation History</h4>
-      <div style="background: var(--light-bg); padding: 1rem; border-radius: 8px; max-height: 300px; overflow-y: auto">
-        <div
-          v-for="(message, index) in conversationHistory"
-          :key="index"
-          style="margin-bottom: 0.5rem; padding: 0.5rem"
-        >
-          <strong :style="{ color: message.sender === 'ai' ? '#3b82f6' : '#10b981' }">
-            {{ message.sender === 'ai' ? 'Customer/Patient' : 'You' }}:
-          </strong>
-          <p style="margin: 0.25rem 0 0 1rem; font-size: 0.9rem; color: var(--text-light)">
-            {{ message.text }}
-          </p>
-        </div>
-      </div>
+      <p style="font-size: 0.78rem; color: var(--text-muted); max-width: 200px; line-height: 1.5">
+        Click anytime to score your session, or hang up and we'll auto-detect it.
+      </p>
     </div>
   </div>
 </template>
 
 <script>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { callsAPI } from '../services/api'
-
-const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
 
 export default {
   name: 'CallInterface',
-  props: {
-    callId: String,
-    scenarioData: Object,
-  },
+  props: { callId: String, scenarioData: Object },
   emits: ['end-call', 'back'],
   setup(props, { emit }) {
-    const userResponse = ref('')
-    const currentAIResponse = ref('')
-    const isProcessing = ref(false)
-    const isListening = ref(false)
-    const speechSupported = ref(!!SpeechRecognition)
+    const callStatus = ref('calling')
+    const isFetchingFeedback = ref(false)
     const error = ref('')
-    const callDuration = ref(0)
-    const conversationHistory = ref([])
+    const elapsed = ref(0)
 
-    let durationInterval = null
-    let recognition = null
+    let elapsedInterval = null
+    let pollInterval = null
 
-    if (SpeechRecognition) {
-      recognition = new SpeechRecognition()
-      recognition.continuous = false
-      recognition.interimResults = true
-      recognition.lang = 'en-US'
+    const RINGING = new Set(['calling', 'ringing', 'initiated', 'dispatched'])
+    const IN_PROGRESS = new Set(['in_progress', 'ongoing', 'active', 'answered'])
+    const DONE = new Set(['completed', 'ended', 'finished'])
+    const FAILED = new Set(['failed', 'no_answer', 'busy', 'cancelled'])
 
-      recognition.onresult = (event) => {
-        const transcript = Array.from(event.results)
-          .map((r) => r[0].transcript)
-          .join('')
-        userResponse.value = transcript
-      }
+    const isRinging = computed(() => RINGING.has(callStatus.value))
+    const isInProgress = computed(() => IN_PROGRESS.has(callStatus.value))
+    const isCompleted = computed(() => DONE.has(callStatus.value))
+    const isFailed = computed(() => FAILED.has(callStatus.value))
 
-      recognition.onend = () => {
-        isListening.value = false
-      }
+    const topObjections = computed(() => (props.scenarioData?.common_objections || []).slice(0, 2))
 
-      recognition.onerror = (event) => {
-        isListening.value = false
-        if (event.error !== 'no-speech') {
-          error.value = `Speech error: ${event.error}`
-        }
-      }
-    }
+    const formatTime = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
-    const toggleListening = () => {
-      if (!recognition) return
-      if (isListening.value) {
-        recognition.stop()
-      } else {
-        userResponse.value = ''
-        error.value = ''
-        recognition.start()
-        isListening.value = true
-      }
-    }
+    const stopPolling = () => { if (pollInterval) { clearInterval(pollInterval); pollInterval = null } }
 
-    const formatTime = (seconds) => {
-      const mins = Math.floor(seconds / 60)
-      const secs = seconds % 60
-      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-    }
-
-    const sendResponse = async () => {
-      if (!userResponse.value.trim()) return
-
+    const fetchFeedback = async () => {
       try {
-        isProcessing.value = true
+        isFetchingFeedback.value = true
         error.value = ''
-
-        // Add user message to history
-        conversationHistory.value.push({
-          sender: 'user',
-          text: userResponse.value,
-        })
-
-        // Send to API
-        const response = await callsAPI.respond(props.callId, userResponse.value)
-
-        // Add AI response to history
-        conversationHistory.value.push({
-          sender: 'ai',
-          text: response.data.ai_response,
-        })
-
-        currentAIResponse.value = response.data.ai_response
-        userResponse.value = ''
-
-        if (response.data.objection_raised) {
-          // Show objection feedback
-          setTimeout(() => {
-            console.log('Objection raised:', response.data.ai_response)
-          }, 500)
-        }
-      } catch (err) {
-        error.value = 'Failed to send response. Please try again.'
-        console.error(err)
-      } finally {
-        isProcessing.value = false
-      }
-    }
-
-    const endCall = async () => {
-      try {
-        isProcessing.value = true
-        error.value = ''
-
-        const response = await callsAPI.end(props.callId, callDuration.value)
+        const response = await callsAPI.end(props.callId)
         emit('end-call', response.data)
-      } catch (err) {
-        error.value = 'Failed to end call. Please try again.'
-        console.error(err)
+      } catch {
+        error.value = 'Failed to load feedback. Please try again.'
       } finally {
-        isProcessing.value = false
+        isFetchingFeedback.value = false
       }
     }
+
+    const pollStatus = async () => {
+      try {
+        const response = await callsAPI.getStatus(props.callId)
+        callStatus.value = response.data.status
+        if (DONE.has(callStatus.value)) { stopPolling(); await fetchFeedback() }
+        else if (FAILED.has(callStatus.value)) { stopPolling() }
+      } catch { /* keep polling on network hiccup */ }
+    }
+
+    const handleEndCall = async () => { stopPolling(); await fetchFeedback() }
 
     onMounted(() => {
-      // Initialize with AI greeting
-      conversationHistory.value.push({
-        sender: 'ai',
-        text: props.scenarioData.ai_greeting,
-      })
-      currentAIResponse.value = props.scenarioData.ai_greeting
-
-      // Start call duration timer
-      durationInterval = setInterval(() => {
-        callDuration.value += 1
-      }, 1000)
+      elapsedInterval = setInterval(() => { elapsed.value++ }, 1000)
+      pollInterval = setInterval(pollStatus, 6000)
+      setTimeout(pollStatus, 3000)
     })
 
     onUnmounted(() => {
-      if (durationInterval) clearInterval(durationInterval)
-      if (recognition && isListening.value) recognition.stop()
+      if (elapsedInterval) clearInterval(elapsedInterval)
+      stopPolling()
     })
 
-    return {
-      userResponse,
-      currentAIResponse,
-      isProcessing,
-      isListening,
-      speechSupported,
-      error,
-      callDuration,
-      conversationHistory,
-      formatTime,
-      toggleListening,
-      sendResponse,
-      endCall,
-    }
+    return { callStatus, isFetchingFeedback, error, elapsed, topObjections,
+      isRinging, isInProgress, isCompleted, isFailed, formatTime, handleEndCall }
   },
 }
 </script>
+
+<style scoped>
+@keyframes ring-pulse {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.4); opacity: 0; }
+}
+</style>

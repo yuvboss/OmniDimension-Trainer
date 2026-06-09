@@ -22,11 +22,10 @@ export const scenariosAPI = {
 }
 
 export const callsAPI = {
-  start: (scenarioId) => apiClient.post('/calls/start', { scenario_id: scenarioId }),
-  respond: (callId, userResponse) =>
-    apiClient.post(`/calls/${callId}/respond`, { user_response: userResponse }),
-  end: (callId, duration) =>
-    apiClient.post(`/calls/${callId}/end`, { call_duration: duration }),
+  start: (scenarioId, phoneNumber) =>
+    apiClient.post('/calls/start', { scenario_id: scenarioId, phone_number: phoneNumber }),
+  getStatus: (callId) => apiClient.get(`/calls/${callId}/status`),
+  end: (callId) => apiClient.post(`/calls/${callId}/end`, {}),
 }
 
 export default apiClient

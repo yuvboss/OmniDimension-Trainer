@@ -8,6 +8,8 @@ import json
 import random
 
 from database import init_db, get_db, Industry, Scenario, CallRecording
+import omnidim_service
+
 from scenarios import seed_database
 from feedback import generate_feedback
 
@@ -27,6 +29,17 @@ app.add_middleware(
 async def startup():
     init_db()
     seed_database()
+    # Pre-load existing OmniDim agents into cache
+    try:
+        from database import SessionLocal
+        db = SessionLocal()
+        scenarios = db.query(Scenario).all()
+        scenario_list = [{"id": s.id, "name": s.name, "difficulty": s.difficulty} for s in scenarios]
+        db.close()
+        name_map = omnidim_service.make_scenario_name_map(scenario_list)
+        omnidim_service.preload_agent_cache(name_map)
+    except Exception as e:
+        print(f"[Startup] Agent cache preload failed: {e}")
 
 
 # Pydantic Models
@@ -69,28 +82,17 @@ class ScenarioDetailResponse(BaseModel):
 
 class CallStartRequest(BaseModel):
     scenario_id: int
+    phone_number: str
 
 
 class CallStartResponse(BaseModel):
     call_id: str
-    ai_greeting: str
-    scenario_name: str
-    status: str
-
-
-class CallRespondRequest(BaseModel):
-    user_response: str
-
-
-class CallRespondResponse(BaseModel):
-    ai_response: str
-    objection_raised: bool
     status: str
     message: str
 
 
 class CallEndRequest(BaseModel):
-    call_duration: int
+    call_duration: Optional[int] = 0
 
 
 class FeedbackResponse(BaseModel):
@@ -101,16 +103,14 @@ class FeedbackResponse(BaseModel):
     average_score: float
 
 
-# In-memory storage for active calls (for demo purposes)
+# In-memory storage for active calls
 active_calls = {}
 
 
 # API Routes
 @app.get("/api/industries", response_model=List[IndustryResponse])
 def get_industries(db: Session = Depends(get_db)):
-    """Get all industries"""
-    industries = db.query(Industry).all()
-    return industries
+    return db.query(Industry).all()
 
 
 @app.get("/api/industries/{industry_id}/scenarios", response_model=List[ScenarioResponse])
@@ -119,29 +119,20 @@ def get_scenarios_by_industry(
     difficulty: Optional[str] = None,
     db: Session = Depends(get_db)
 ):
-    """Get scenarios for a specific industry"""
     query = db.query(Scenario).filter(Scenario.industry_id == industry_id)
-
     if difficulty:
         query = query.filter(Scenario.difficulty == difficulty)
-
     scenarios = query.all()
-
     if not scenarios:
         raise HTTPException(status_code=404, detail="No scenarios found")
-
     return scenarios
 
 
 @app.get("/api/scenarios/{scenario_id}", response_model=ScenarioDetailResponse)
 def get_scenario_detail(scenario_id: int, db: Session = Depends(get_db)):
-    """Get full scenario details"""
     scenario = db.query(Scenario).filter(Scenario.id == scenario_id).first()
-
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
-
-    # Convert JSON strings back to lists/dicts
     return {
         "id": scenario.id,
         "name": scenario.name,
@@ -152,164 +143,155 @@ def get_scenario_detail(scenario_id: int, db: Session = Depends(get_db)):
         "objective": scenario.objective,
         "common_questions": json.loads(scenario.common_questions) if isinstance(scenario.common_questions, str) else scenario.common_questions,
         "common_objections": json.loads(scenario.common_objections) if isinstance(scenario.common_objections, str) else scenario.common_objections,
-        "ideal_responses": json.loads(scenario.ideal_responses) if isinstance(scenario.ideal_responses, str) else scenario.ideal_responses
+        "ideal_responses": json.loads(scenario.ideal_responses) if isinstance(scenario.ideal_responses, str) else scenario.ideal_responses,
     }
 
 
 @app.post("/api/calls/start", response_model=CallStartResponse)
 def start_call(request: CallStartRequest, db: Session = Depends(get_db)):
-    """Start a voice call with the AI agent"""
     scenario = db.query(Scenario).filter(Scenario.id == request.scenario_id).first()
-
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
+    scenario_dict = {
+        "name": scenario.name,
+        "description": scenario.description,
+        "customer_profile": scenario.customer_profile,
+        "objective": scenario.objective,
+        "common_objections": json.loads(scenario.common_objections) if isinstance(scenario.common_objections, str) else scenario.common_objections,
+        "common_questions": json.loads(scenario.common_questions) if isinstance(scenario.common_questions, str) else scenario.common_questions,
+    }
+
+    try:
+        agent_id = omnidim_service.get_or_create_agent(request.scenario_id, scenario_dict, scenario.difficulty)
+        dispatch_result = omnidim_service.dispatch_call(agent_id, request.phone_number)
+        request_id = (
+            dispatch_result.get("json", {}).get("requestId")
+            or dispatch_result.get("json", {}).get("request_id")
+            or dispatch_result.get("requestId")
+        )
+        print(f"[Call] Dispatched agent={agent_id} request_id={request_id} to={request.phone_number}")
+    except Exception as e:
+        print(f"[Call] OmniDim dispatch failed: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to dispatch call: {str(e)}")
+
     call_id = str(uuid.uuid4())
-
-    # Generate initial AI greeting based on scenario
-    common_questions = json.loads(scenario.common_questions) if isinstance(scenario.common_questions, str) else scenario.common_questions
-
-    if "real_estate" in scenario.customer_profile.lower() or "buyer" in scenario.customer_profile.lower():
-        greetings = [
-            f"Hi! I'm interested in learning more about your properties in this area. I'm currently looking for something that fits my budget and needs.",
-            f"Hello! I found your listing online and I'm very interested. Before I schedule a viewing, I have a few questions about the property.",
-            f"Hi there! I've been looking at properties here for a while now. Tell me more about what makes your listings special."
-        ]
-    else:  # healthcare
-        greetings = [
-            f"Hello! I was referred here by a friend. I'm interested in learning about your treatment options for my condition.",
-            f"Hi! I've done some research about your clinic and I'd like to know more about the services you offer and your experience.",
-            f"Hi there! I'm considering this procedure and I'd like to understand more about the process, costs, and what to expect."
-        ]
-
-    ai_greeting = random.choice(greetings)
-
-    # Store call in active calls
     active_calls[call_id] = {
         "scenario_id": request.scenario_id,
+        "agent_id": agent_id,
+        "request_id": request_id,
         "scenario_name": scenario.name,
         "difficulty": scenario.difficulty,
         "user_responses": [],
-        "ai_responses": [ai_greeting],
+        "ai_responses": [],
         "objections_raised": [],
         "common_objections": json.loads(scenario.common_objections) if isinstance(scenario.common_objections, str) else scenario.common_objections,
-        "ideal_responses": json.loads(scenario.ideal_responses) if isinstance(scenario.ideal_responses, str) else scenario.ideal_responses
+        "ideal_responses": json.loads(scenario.ideal_responses) if isinstance(scenario.ideal_responses, str) else scenario.ideal_responses,
+        "last_call_log": None,
     }
 
-    return {
-        "call_id": call_id,
-        "ai_greeting": ai_greeting,
-        "scenario_name": scenario.name,
-        "status": "active"
-    }
+    return {"call_id": call_id, "status": "calling", "message": "Call dispatched. Your phone will ring shortly."}
 
 
-@app.post("/api/calls/{call_id}/respond", response_model=CallRespondResponse)
-def respond_to_call(call_id: str, request: CallRespondRequest):
-    """User responds to AI during the call"""
+@app.get("/api/calls/{call_id}/status")
+def get_call_status(call_id: str):
     if call_id not in active_calls:
         raise HTTPException(status_code=404, detail="Call not found")
 
     call = active_calls[call_id]
-    call["user_responses"].append(request.user_response)
+    agent_id = call.get("agent_id")
 
-    # Decide if we raise an objection
-    objection_raised = False
-    ai_response = ""
+    if not agent_id:
+        return {"status": "calling"}
 
-    difficulty = call["difficulty"]
-    common_objections = call["common_objections"]
+    try:
+        logs = omnidim_service.get_recent_calls_for_agent(agent_id, page_size=10)
+        if not logs:
+            return {"status": "calling"}
 
-    # Objection probability based on difficulty
-    if difficulty == "easy":
-        objection_chance = 0.2  # 20% chance
-    elif difficulty == "medium":
-        objection_chance = 0.5  # 50% chance
-    else:  # hard
-        objection_chance = 0.8  # 80% chance
+        # Match by call_request_id so we never pick up old completed calls
+        request_id = call.get("request_id")
+        log = None
+        if request_id:
+            for entry in logs:
+                if str(entry.get("call_request_id", "")) == str(request_id):
+                    log = entry
+                    break
 
-    if random.random() < objection_chance and len(call["objections_raised"]) < 2:
-        # Raise an objection
-        available_objections = [o for o in common_objections if o not in call["objections_raised"]]
-        if available_objections:
-            objection = random.choice(available_objections)
-            call["objections_raised"].append(objection)
-            objection_raised = True
-            ai_response = f"I understand, but {objection.lower()} What do you think about that?"
+        if not log:
+            return {"status": "calling"}
+
+        raw_status = (log.get("call_status") or log.get("status") or "").lower().replace("-", "_").replace(" ", "_")
+
+        if raw_status in ("completed", "ended", "finished"):
+            call["last_call_log"] = log
+            return {"status": "completed"}
+        elif raw_status in ("in_progress", "ongoing", "active", "answered", "in_progress"):
+            return {"status": "in_progress"}
+        elif raw_status in ("failed", "no_answer", "busy", "cancelled"):
+            return {"status": "failed"}
         else:
-            ai_response = "That makes sense. Let's continue. Do you have any other questions?"
-    else:
-        # Continue conversation naturally
-        responses = [
-            "That's a good point. Let me think about that for a moment.",
-            "I appreciate your perspective. How does that align with your needs?",
-            "Interesting. Can you tell me more about why that's important to you?",
-            "I see. That's definitely something we should consider."
-        ]
-        ai_response = random.choice(responses)
-
-    call["ai_responses"].append(ai_response)
-
-    return {
-        "ai_response": ai_response,
-        "objection_raised": objection_raised,
-        "status": "active",
-        "message": "Response recorded. Continue the conversation."
-    }
+            return {"status": "calling", "raw_status": raw_status}
+    except Exception as e:
+        print(f"[Status] OmniDim poll error: {e}")
+        return {"status": "calling"}
 
 
 @app.post("/api/calls/{call_id}/end", response_model=FeedbackResponse)
 def end_call(call_id: str, request: CallEndRequest, db: Session = Depends(get_db)):
-    """End the call and generate feedback"""
     if call_id not in active_calls:
         raise HTTPException(status_code=404, detail="Call not found")
 
     call = active_calls[call_id]
-
-    # Get scenario details
     scenario = db.query(Scenario).filter(Scenario.id == call["scenario_id"]).first()
-
     if not scenario:
         raise HTTPException(status_code=404, detail="Scenario not found")
 
-    # Generate feedback
-    ideal_responses = call["ideal_responses"]
+    # Try to get real transcript from OmniDim
+    user_responses = call["user_responses"]
+    ai_responses = call["ai_responses"]
+    conversation_turns = []
+    try:
+        call_log = call.get("last_call_log")
+        if not call_log and call.get("agent_id"):
+            logs = omnidim_service.get_recent_calls_for_agent(call["agent_id"], page_size=3)
+            call_log = logs[0] if logs else None
+        if call_log:
+            user_responses, ai_responses = omnidim_service.parse_transcript(call_log)
+            conversation_turns = omnidim_service.parse_conversation_turns(call_log)
+    except Exception as e:
+        print(f"[End] Could not fetch transcript: {e}")
+
     feedback_data = generate_feedback(
-        scenario_data={
-            "name": scenario.name,
-            "objective": scenario.objective
-        },
+        scenario_data={"name": scenario.name, "objective": scenario.objective},
         difficulty=call["difficulty"],
-        call_responses=call["user_responses"],
-        common_objections=call["objections_raised"],
-        ideal_responses=ideal_responses
+        call_responses=user_responses,
+        common_objections=call["common_objections"],
+        ideal_responses=call["ideal_responses"],
+        conversation_turns=conversation_turns,
     )
 
-    # Save call recording to database
     call_recording = CallRecording(
         scenario_id=call["scenario_id"],
-        user_transcript=" | ".join(call["user_responses"]),
-        ai_transcript=" | ".join(call["ai_responses"]),
-        call_duration=request.call_duration,
+        user_transcript=" | ".join(user_responses),
+        ai_transcript=" | ".join(ai_responses),
+        call_duration=request.call_duration or 0,
         feedback_score=json.dumps(feedback_data["feedback"]),
         feedback_suggestions=json.dumps({
             "strengths": feedback_data["strengths"],
             "improvements": feedback_data["improvements"],
-            "objection_responses": feedback_data["objection_responses"]
-        })
+            "objection_responses": feedback_data["objection_responses"],
+        }),
     )
     db.add(call_recording)
     db.commit()
 
-    # Remove from active calls
     del active_calls[call_id]
-
     return feedback_data
 
 
 @app.get("/health")
 def health():
-    """Health check endpoint"""
     return {"status": "ok"}
 
 
